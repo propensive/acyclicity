@@ -37,6 +37,7 @@ case class Dag[T] private(edgeMap: Map[T, Set[T]] = Map[T, Set[T]]()) {
   def remove(key: T, value: T): Dag[T] = Dag(edgeMap.updated(key, edgeMap.get(key).map(_ - value).getOrElse(Set())))
   def -(key: T): Dag[T] = Dag(edgeMap - key)
   def sources: Set[T] = edgeMap.collect { case (k, v) if v.isEmpty => k }.to[Set]
+  def sinks: Set[T] = keys -- keys.flatMap(apply(_))
   def edges: Set[(T, T)] = edgeMap.to[Set].flatMap { case (k, vs) => vs.map(k -> _) }
 
   def dot: String = edges.map { case (k, v) => s""""$k" -> "$v"""" }.mkString("digraph {\n  ", ";\n  ", ";\n}")

@@ -23,10 +23,10 @@ object Dag {
     Dag(keys.map { k => (k, dependencies(k)) }.toMap)
 
   def from[T](edges: (T, T)*): Dag[T] = Dag(edges.foldLeft(Map[T, Set[T]]()) { case (acc, (k, v)) =>
-    acc.updated(k, acc.get(k).fold(Set(v))(_ + v))
+    acc.updated(k, acc.get(k).fold(Set(v))(_ + v)).updated(v, acc.getOrElse(v, Set()))
   })
   
-  def apply[T](nodes: (T, Set[T])*): Dag[T] = Dag(Map(nodes: _*))
+  def apply[T](nodes: (T, Set[T])*): Dag[T] = Dag(nodes.flatMap(_._2).map(_ -> Set[T]()).toMap ++ Map(nodes: _*))
 }
 
 case class Dag[T] private(edgeMap: Map[T, Set[T]] = Map[T, Set[T]]()) {
@@ -34,8 +34,7 @@ case class Dag[T] private(edgeMap: Map[T, Set[T]] = Map[T, Set[T]]()) {
   def map[S](fn: T => S): Dag[S] = Dag[S](edgeMap.map { case (k, v) => (fn(k), v.map(fn)) })
   def subgraph(keep: Set[T]): Dag[T] = (edgeMap.keySet &~ keep).foldLeft(this)(_.remove(_))
   def apply(key: T): Set[T] = edgeMap.getOrElse(key, Set())
-  def remove(key: T, value: T): Dag[T] = Dag(edgeMap.updated(key, edgeMap.get(key).map(_ - value).getOrElse(Set())))
-  def -(key: T): Dag[T] = Dag(edgeMap - key)
+  def -(key: T): Dag[T] = remove(key)
   def sources: Set[T] = edgeMap.collect { case (k, v) if v.isEmpty => k }.to[Set]
   def sinks: Set[T] = keys -- keys.flatMap(apply(_))
   def edges: Set[(T, T)] = edgeMap.to[Set].flatMap { case (k, vs) => vs.map(k -> _) }
@@ -75,16 +74,7 @@ case class Dag[T] private(edgeMap: Map[T, Set[T]] = Map[T, Set[T]]()) {
       sort((todo - node).mapValues(_.filter(_ != node)), node :: done)
     }
 
-  def filter(pred: T => Boolean): Dag[T] = {
-    val deletions = edgeMap.keySet.filter(!pred(_))
-    val inverted = invert
-    Dag(deletions.foldLeft(edgeMap) { case (acc, next) =>
-      val indirect: Set[T] = acc(next)
-      inverted(next).foldLeft(acc) { case (acc2, ref) => acc2.updated(ref, acc2(ref) - next ++ indirect) }
-    } -- deletions)
-    
-  }
-
+  def filter(pred: T => Boolean): Dag[T] = keys.filter(!pred(_)).foldLeft(this)(_ - _)
   def neighbours(start: T): Set[T] = edgeMap.getOrElse(start, Set())
   def hasCycle(start: T): Boolean = findCycle(start).isDefined
 

@@ -39,6 +39,8 @@ case class Dag[T] private(edgeMap: Map[T, Set[T]] = Map[T, Set[T]]()) {
   def sinks: Set[T] = keys -- keys.flatMap(apply(_))
   def edges: Set[(T, T)] = edgeMap.to[Set].flatMap { case (k, vs) => vs.map(k -> _) }
 
+  def updated(source: T, sink: T): Dag = Dag(edgeMap.updated(source, edgeMap.get(source).fold(Set(sink))(_ + _)))
+
   def dot: String = edges.map { case (k, v) => s""""$k" -> "$v"""" }.mkString("digraph {\n  ", ";\n  ", ";\n}")
 
   def ++(dag: Dag[T]): Dag[T] =
